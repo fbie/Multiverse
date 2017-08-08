@@ -1,55 +1,70 @@
-Multiverse Software Transactional Memory
--------------------------
+# Multiverse Software Transactional Memory #
 
-A software transactional memory implementation for the JVM. Access (read and writes) to shared memory is done through
-transactional references, that can be compared to the AtomicReferences of Java. Access to these references will be done
-under A (atomicity), C (consistency), I (isolation) semantics. For more information see <a href="http://multiverse.codehaus.org">multiverse.codehaus.org</a>
+A software transactional memory implementation for the JVM. Access (read and writes) to shared memory is done through transactional references, that can be compared to `AtomicReference` from `java.util.concurrent.*`.   Access to these references will be done under A (atomicity), C (consistency), I (isolation) semantics.
 
-Example
--------------------------
+Unfortunately, the project's website is no longer maintained.  You can access the [Javadoc](http://itu.dk/people/fbie/multiverse-javadoc).
 
-    import org.multiverse.api.references.*;
-    import static org.multiverse.api.StmUtils.*;
 
-    public class Account{
-        private final TxnRef<Date> lastModified = new TxnRef();
-        private final TxnLong amount = new TxnLong();
+## Example ##
 
-        public Account(long amount){
-           this.amount.set(amount);
-           this.lastModified.set(new Date());
-        }
+```java
+import org.multiverse.api.references.*;
+import static org.multiverse.api.StmUtils.*;
 
-        public Date getLastModifiedDate(){
-            return lastModified.get();
-        }
+public class Account {
+    private final TxnRef<Date> lastModified;
+    private final TxnLong amount;
 
-        public long getAmount(){
-            return amount.get();
-        }
+    public Account(long amount) {
+       // NB: Cannot call TxnRef.set() from outside transactions.
+       this.amount = newTxnLong(amount);
+       this.lastModified = newTxnRef(new Date());
+    }
 
-        public static void transfer(final Account from, final Account to, final long amount){
-            atomic(new Runnable()){
-                public void run(){
-                    Date date = new Date();
+    public Date getLastModifiedDate(){
+        // NB: Cannot call TxnRef.get() from outside transactions.
+        return lastModified.atomicWeakGet();
+    }
 
-                    from.lastModified.set(date);
-                    from.amount.dec(amount);
+    public long getAmount(){
+         return amount.atomicWeakGet();
+    }
 
-                    to.lastModified.set(date);
-                    to.amount.inc(amount);
-                }
+    public static void transfer(final Account from, final Account to, final long amount){
+        atomic(new Runnable()){
+            public void run(){
+                Date date = new Date();
+
+                from.lastModified.set(date);
+                from.amount.dec(amount);
+
+                to.lastModified.set(date);
+                to.amount.inc(amount);
             }
         }
     }
 
-    # And it can be called like this:
+    public static main(String[] args) {
+        Account account1 = new Account(10);
+        Account account2 = new Account(20)
+        Account.transfer(account1, account2, 5);
+        System.out.println(account2.getAmount());
+    }
+}
+```
 
-    Account account1 = new Account(10);
-    Account account2 = new Account(20)
-    Account.transfer(account1, account2, 5);
 
 
-No instrumentation.
--------------------------
+## Compilation ##
+
+Compile with Maven:
+
+```bash
+$ mvn compile
+```
+
+
+
+## No Instrumentation ##
+
 Multiverse doesn't rely on instrumentation, so is easy to integrate in existing projects.
